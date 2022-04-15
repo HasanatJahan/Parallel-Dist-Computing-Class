@@ -26,9 +26,9 @@ def compute_partner(phase, my_rank):
             partner = my_rank - 1        
     
     # NOTE: MPI.PROC_NULL DOING SOMETHING WONKY AND THIS FOR LOOP DOES NOT ALL CAPTURE NEGATIVES 
-    if partner < 0 or partner == size:
+    if partner < 0 or partner >= size:
         partner = MPI.PROC_NULL
-    
+
     return partner
 
 # first we sort local keys 
@@ -38,16 +38,25 @@ ending_index = int(starting_index + local_n) # taking into account the slicing
 local_arr = np.array(input_arr[starting_index:ending_index])
 # sort the local keys 
 local_arr.sort()
+
 rcv_arr = []
+
 snd_buf = np.array(local_arr, dtype=np.intc)
 rcv_buf = np.empty(len(snd_buf), dtype=np.intc)
 
 for phase in range(0, size):
     partner = compute_partner(phase, my_rank)
+    print("phase, partner, my_rank", phase, partner, my_rank)
     # if the current process is not idle 
-    if phase % 2 != 0 and (my_rank != 0 or my_rank != 3):
+    if phase >= 0 and (phase % 2 != 0 and (my_rank != 0 or my_rank != 3) or phase % 2) == 0:
+        print("inside --> phase, partner, my_rank", phase, partner, my_rank)
+
         # send keys to partner 
         comm_world.Sendrecv(snd_buf, partner, 0, rcv_buf, partner, 0)
+
+        # there are wonky values when the rcv_buf does not receive anything 
+
+
         print("rcv_buf", rcv_buf)
         print("local arr" , local_arr)
         # merge them together and sort 
@@ -56,8 +65,12 @@ for phase in range(0, size):
         print("joined_list", joined_list)
         half_len = int(len(joined_list)/2)
 
+        # NOTE: THE LOCAL_ARR IS GIVING WONKY SHIT 
         if my_rank < partner:
             # keep the smaller keys 
             local_arr = joined_list[0:half_len]
+            print("local_arr after join", local_arr)
         else:
             local_arr = joined_list[half_len:len(joined_list)]
+            print("local_arr after join", local_arr)
+
