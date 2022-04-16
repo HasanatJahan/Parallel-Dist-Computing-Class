@@ -1,3 +1,5 @@
+# Name: Hasanat Jahan
+
 #!/usr/bin/env python3
 from mpi4py import MPI
 import numpy as np
@@ -25,7 +27,6 @@ def compute_partner(phase, my_rank):
         else:
             partner = my_rank - 1        
     
-    # NOTE: MPI.PROC_NULL DOING SOMETHING WONKY AND THIS FOR LOOP DOES NOT ALL CAPTURE NEGATIVES 
     if partner < 0 or partner >= size:
         partner = MPI.PROC_NULL
 
@@ -36,8 +37,11 @@ local_n = len(input_arr) / size
 starting_index = int(my_rank * local_n)
 ending_index = int(starting_index + local_n) # taking into account the slicing 
 local_arr = np.array(input_arr[starting_index:ending_index])
+print("my_rank:", my_rank, ", Start local array:", local_arr)
+
 # sort the local keys 
 local_arr.sort()
+print("my_rank:", my_rank, ", After array local sort:", local_arr)
 
 rcv_arr = []
 
@@ -46,37 +50,27 @@ rcv_buf = np.empty(len(snd_buf), dtype=np.intc)
 
 for phase in range(0, size):
     partner = compute_partner(phase, my_rank)
-    # print("phase, partner, my_rank", phase, partner, my_rank)
     # if the current process is not idle 
-    if partner >= 0 and partner < size and ((phase % 2 != 0 and (my_rank != 0 or my_rank != 3) and (partner != 0 or partner != 3)) or phase % 2== 0):
-        # print("inside --> phase, partner, my_rank", phase, partner, my_rank)
+    if partner >= 0 and ((phase % 2 != 0 and (my_rank != 0 or my_rank != 3) and (partner != 0 or partner != 3)) or phase % 2== 0):
 
         # send keys to partner 
         comm_world.Sendrecv(snd_buf, partner, 0, rcv_buf, partner, 0)
 
-        # print("rcv_buf", rcv_buf)
-        # print("phase", phase, "my_rank", my_rank, "partner", partner, "local arr" , local_arr)
-        # print("phase", phase,"rcv_buf before", rcv_buf)
-        np.copyto(snd_buf, rcv_buf)
-
         # merge them together and sort 
         joined_list = np.concatenate((local_arr, rcv_buf))
         joined_list = sorted(joined_list)
-        # print("joined_list", joined_list)
         half_len = int(len(joined_list)/2)
 
         if my_rank < partner:
             # keep the smaller keys 
             local_arr = joined_list[0:half_len]
-            # print("local_arr after join", local_arr)
         else:
             local_arr = joined_list[half_len:len(joined_list)]
-            # print("local_arr after join", local_arr)
 
-
+        # copy rhe new local_arr as the snd_buf
         np.copyto(snd_buf, local_arr)
 
-        print("phase", phase, "my_rank", my_rank, "partner", partner, "local arr" , local_arr)
+        print("phase:", phase, ", my_rank:", my_rank, "partner:", partner, ", local arr:" , local_arr)
 
 
 sorted_arr = comm_world.gather(local_arr, 0)

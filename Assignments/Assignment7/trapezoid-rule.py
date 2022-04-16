@@ -1,3 +1,5 @@
+# Name: Hasanat Jahan
+
 #!/usr/bin/env python3
 from mpi4py import MPI
 import numpy as np
@@ -29,9 +31,6 @@ def calculate_trap_area(left_endpoint, right_endpoint, trap_count, base_len):
 # starting and ending range of the whole function 
 a = 0
 b = 1
-
-# print(f"We want to do the integration of x^2 from 0 to 1 ")
-# n=int(input("Please enter a value for n for the number of divides: "))
 
 n = int(sys.argv[1])
 
