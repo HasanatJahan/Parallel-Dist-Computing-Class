@@ -79,3 +79,8 @@ for phase in range(0, size):
         print("phase", phase, "my_rank", my_rank, "partner", partner, "local arr" , local_arr)
 
 
+sorted_arr = comm_world.gather(local_arr, 0)
+flat_sorted_arr = []
+if(sorted_arr!= None):
+    flat_sorted_arr = [ item for elem in sorted_arr for item in elem]
+    print(f"Final sorted list: {flat_sorted_arr}")
