@@ -46,31 +46,36 @@ rcv_buf = np.empty(len(snd_buf), dtype=np.intc)
 
 for phase in range(0, size):
     partner = compute_partner(phase, my_rank)
-    print("phase, partner, my_rank", phase, partner, my_rank)
+    # print("phase, partner, my_rank", phase, partner, my_rank)
     # if the current process is not idle 
-    if phase >= 0 and (phase % 2 != 0 and (my_rank != 0 or my_rank != 3) or phase % 2) == 0:
-        print("inside --> phase, partner, my_rank", phase, partner, my_rank)
+    if partner >= 0 and partner < size and ((phase % 2 != 0 and (my_rank != 0 or my_rank != 3) and (partner != 0 or partner != 3)) or phase % 2== 0):
+        # print("inside --> phase, partner, my_rank", phase, partner, my_rank)
 
         # send keys to partner 
         comm_world.Sendrecv(snd_buf, partner, 0, rcv_buf, partner, 0)
 
-        # there are wonky values when the rcv_buf does not receive anything 
+        # print("rcv_buf", rcv_buf)
+        # print("phase", phase, "my_rank", my_rank, "partner", partner, "local arr" , local_arr)
+        # print("phase", phase,"rcv_buf before", rcv_buf)
+        np.copyto(snd_buf, rcv_buf)
 
-
-        print("rcv_buf", rcv_buf)
-        print("local arr" , local_arr)
         # merge them together and sort 
         joined_list = np.concatenate((local_arr, rcv_buf))
         joined_list = sorted(joined_list)
-        print("joined_list", joined_list)
+        # print("joined_list", joined_list)
         half_len = int(len(joined_list)/2)
 
-        # NOTE: THE LOCAL_ARR IS GIVING WONKY SHIT 
         if my_rank < partner:
             # keep the smaller keys 
             local_arr = joined_list[0:half_len]
-            print("local_arr after join", local_arr)
+            # print("local_arr after join", local_arr)
         else:
             local_arr = joined_list[half_len:len(joined_list)]
-            print("local_arr after join", local_arr)
+            # print("local_arr after join", local_arr)
+
+
+        np.copyto(snd_buf, local_arr)
+
+        print("phase", phase, "my_rank", my_rank, "partner", partner, "local arr" , local_arr)
+
 
