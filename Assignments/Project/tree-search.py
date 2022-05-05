@@ -5,6 +5,7 @@ from mpi4py import MPI
 import numpy as np
 import math
 import sys
+from collections import deque
 
 status = MPI.Status()
 
@@ -13,94 +14,31 @@ my_rank = comm_world.Get_rank()
 size = comm_world.Get_size()
 
 
-# Create a graph representation 
-# Directed graph representation with 10 vertices to represent 10 cities 
-# copied from: https://www.bogotobogo.com/python/python_graph_data_structures.php
-class Vertex:
-    def __init__(self, node):
-        self.id = node
-        self.adjacent = {}
+# Problem: Visit each city once and return to hometown with a minimum cost
+# In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
+# Each node of the tree has an associated cost, ie, the cost of the partial tour. We use this to eliminate parts of the tree 
+# if we find a partial tour or node of teh tree that couldn't lead to a less expensive final tour, we don't bother searching there 
 
-    def __str__(self):
-        return str(self.id) + ' adjacent: ' + str([x.id for x in self.adjacent])
 
-    def add_neighbor(self, neighbor, weight=0):
-        self.adjacent[neighbor] = weight
+# graph representation as an adjacency matrix 
+graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1], 
+        [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
+        [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
+        [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
+        [1, 4, 5, 1, 0, 1, 1, 1, 1, 1],
+        [1, 4, 5, 1, 1, 0, 1, 1, 1, 1],
+        [1, 4, 5, 1, 1, 1, 0, 1, 1, 1],
+        [1, 4, 5, 1, 1, 1, 1, 0, 1, 1],
+        [1, 4, 5, 1, 1, 1, 1, 1, 0, 1],
+        [1, 4, 5, 1, 1, 1, 1, 1, 1, 0]]
 
-    def get_connections(self):
-        return self.adjacent.keys()  
+cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
-    def get_id(self):
-        return self.id
-
-    def get_weight(self, neighbor):
-        return self.adjacent[neighbor]
-
-class Graph:
-    def __init__(self):
-        self.vert_dict = {}
-        self.num_vertices = 0
-
-    def __iter__(self):
-        return iter(self.vert_dict.values())
-
-    def add_vertex(self, node):
-        self.num_vertices = self.num_vertices + 1
-        new_vertex = Vertex(node)
-        self.vert_dict[node] = new_vertex
-        return new_vertex
-
-    def get_vertex(self, n):
-        if n in self.vert_dict:
-            return self.vert_dict[n]
-        else:
-            return None
-
-    def add_edge(self, frm, to, cost = 0):
-        if frm not in self.vert_dict:
-            self.add_vertex(frm)
-        if to not in self.vert_dict:
-            self.add_vertex(to)
-
-        self.vert_dict[frm].add_neighbor(self.vert_dict[to], cost)
-        self.vert_dict[to].add_neighbor(self.vert_dict[frm], cost)
-
-    def get_vertices(self):
-        return self.vert_dict.keys()
-
-# Now to create the graph with 10 vertices 
-g = Graph()
-
-g.add_vertex('a')
-g.add_vertex('b')
-g.add_vertex('c')
-g.add_vertex('d')
-g.add_vertex('e')
-g.add_vertex('f')
-g.add_vertex('g')
-g.add_vertex('h')
-g.add_vertex('i')
-g.add_vertex('j')
-
-# Replace the weights with random numbers for the final run 
-g.add_edge('a', 'b', 7)  
-g.add_edge('a', 'c', 9)
-g.add_edge('a', 'f', 14)
-g.add_edge('b', 'c', 10)
-g.add_edge('b', 'd', 15)
-g.add_edge('c', 'd', 11)
-g.add_edge('c', 'f', 2)
-g.add_edge('d', 'e', 6)
-g.add_edge('e', 'f', 9)
-
-for v in g:
-    for w in v.get_connections():
-        vid = v.get_id()
-        wid = w.get_id()
-        print( vid, wid, v.get_weight(w))
-
-for v in g:
-    print(v.get_id(), g.vert_dict[v.get_id()])
+# NOTE: Have Process 0 broadcas the adjacency matrix to all the processes 
+if my_rank == 0:
+    snd_buf = np.array(graph, dtype=np.intc)
+    sent_adjacency = comm_world.bcast(snd_buf)
+    print(f"This is sent adjacency {sent_adjacency}")
 
 
 # Now the variables used for the MPI process 
@@ -109,9 +47,8 @@ my_stack = []
 # init to be higher than any possible value 
 best_tour = 1000000
 # starting from the initial vertiex 
-hometown = g.vert_dict["a"]
+hometown = graph[0]
 initial_tour = [hometown]
-print(initial_tour)
 
 
 # functions for terminated 
@@ -134,6 +71,9 @@ def clear_msg():
 def no_work_left():
     return
 
+def isEmpty(my_stack):
+    return len(my_stack) == 0
+
 # terminated function for dynamically partitioned solver with MPI 
 def terminated(my_stack):
     if my_avail_tour_count(my_stack) >= 2:
@@ -143,7 +83,7 @@ def terminated(my_stack):
     else: 
         send_rejects() #tell everyone that requested that I have none 
         # there is still more work to do
-        if not my_stack.empty():
+        if not isEmpty(my_stack):
             return False
         else:
             if size == 1:
@@ -180,7 +120,7 @@ def city_count(curr_tour):
 # 3. Update_best_tour: we can replace the current best tour by calling this function 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 
-# NOTE: Tehere should be a main while loop in the search function 
+# NOTE: There should be a main while loop in the search function 
 
 # 1. If the my_rank==0 then we figure out how many processes there should be - not sure about this part 
 # It is very similar to the serial implementation of the tree search 
@@ -189,9 +129,18 @@ def city_count(curr_tour):
 # We would like all the processes to have the copy of the adjacency matrix but since there is a shared graph this does not need to be distributed 
 # We build a parallel algorithm based on the second iterative solution 
 def partition_tree(my_rank, my_stack):
-    return 
+    # process 0 uses breath first search to search the tree until there are at least process count partial tours 
+    # then each process then determines which of the partial tours it should get and pushes the tours into its local stack 
+    # process 0 will need to send the initial tours to the appropriate process 
 
-# checks if it is the best tour 
+
+    # NOTE: Later from the chapter 
+    if my_rank == 0:
+        return
+
+
+
+
 def best_tour(tour):
     return
 
@@ -219,7 +168,7 @@ def free_tour(curr_tour):
 # main loop 
 partition_tree(my_rank, my_stack)
 
-while not my_stack.empty():
+while not isEmpty(my_stack):
     curr_tour = my_stack.pop()
     
     if city_count(curr_tour) == n:
