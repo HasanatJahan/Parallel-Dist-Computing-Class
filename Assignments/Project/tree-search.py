@@ -11,8 +11,7 @@ status = MPI.Status()
 
 comm_world = MPI.COMM_WORLD
 my_rank = comm_world.Get_rank()
-size = comm_world.Get_size()
-
+comm_size = comm_world.Get_size()
 
 # Problem: Visit each city once and return to hometown with a minimum cost
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
@@ -38,7 +37,6 @@ cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 if my_rank == 0:
     snd_buf = np.array(graph, dtype=np.intc)
     sent_adjacency = comm_world.bcast(snd_buf)
-    print(f"This is sent adjacency {sent_adjacency}")
 
 
 # Now the variables used for the MPI process 
@@ -120,25 +118,67 @@ def city_count(curr_tour):
 # 3. Update_best_tour: we can replace the current best tour by calling this function 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 
-# NOTE: There should be a main while loop in the search function 
-
-# 1. If the my_rank==0 then we figure out how many processes there should be - not sure about this part 
-# It is very similar to the serial implementation of the tree search 
-
 
 # We would like all the processes to have the copy of the adjacency matrix but since there is a shared graph this does not need to be distributed 
 # We build a parallel algorithm based on the second iterative solution 
-def partition_tree(my_rank, my_stack):
-    # process 0 uses breath first search to search the tree until there are at least process count partial tours 
-    # then each process then determines which of the partial tours it should get and pushes the tours into its local stack 
+def partition_tree(my_rank, my_stack, comm_size):
+    # Process 0 will generate a list of comm_size partial tours .
+    # Memory wont be shared, it will send the initial partial tours to the ap
+    # So it will send many tours using scatter to each process  
     # process 0 will need to send the initial tours to the appropriate process 
-
-
-    # NOTE: Later from the chapter 
+    partial_tours = []
+    split_sizes = []
+    split =[]
     if my_rank == 0:
-        return
+        # first to create the different partial tours 
+        for i in range(1, n):
+            partial_tours.append([0, i])
 
+        snd_buf = np.array(partial_tours)
 
+        # now to equally divide the number of processes 
+        # using reference: https://www.kth.se/blogs/pdc/2019/11/parallel-programming-in-python-mpi4py-part-2/
+
+        # ave, res = divmod(snd_buf.size/(n-1), comm_size)
+        # print(f"ave {ave} res {res}")
+        # count = [ave + 1 if p < res else ave for p in range(comm_size)]
+        # count = np.array(count)
+        split = np.array_split(partial_tours, comm_size, axis = 0)
+        print(f"This is split {split}")
+        
+        split_sizes = []
+
+        for i in range(0,len(split),1):
+            split_sizes = np.append(split_sizes, len(split[i]))
+
+        # displacement: the starting index of each sub-task
+        # displ = [sum(count[:p]) for p in range(comm_size)]
+        # displ = np.array(displ)
+        split_sizes_input = split_sizes * (n-1)
+        displ = np.insert(np.cumsum(split_sizes_input), 0, 0)[0:-1]
+
+        split_sizes_output = split_sizes*512
+        displacements_output = np.insert(np.cumsum(split_sizes_output),0,0)[0:-1]
+        
+    else:
+        snd_buf = None
+        # initialize count on worker processes
+        count = np.zeros(comm_size, dtype=np.intc)
+        displ = None
+
+        split_sizes_input = None
+        displacements_input = None
+        split_sizes_output = None
+        displacements_output = None
+
+    # on all processes we have the initial rcv_buf 
+    # recv_buf = np.zeros(count[my_rank])
+    recv_buf = np.empty(len(split_sizes))
+
+    comm_world.Scatterv([snd_buf, len(split), displ, MPI.INT], recv_buf, root = 0)
+    
+
+    print(f"After scatter this is the partial tour {recv_buf} with process {my_rank}")
 
 
 def best_tour(tour):
@@ -166,7 +206,7 @@ def free_tour(curr_tour):
 
 
 # main loop 
-partition_tree(my_rank, my_stack)
+partition_tree(my_rank, my_stack, comm_size)
 
 while not isEmpty(my_stack):
     curr_tour = my_stack.pop()
