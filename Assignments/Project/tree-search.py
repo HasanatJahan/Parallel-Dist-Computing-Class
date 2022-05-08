@@ -127,39 +127,7 @@ def get_partial_tour():
     return np.array(partial_tours)
 
 
-def partition_tree(my_rank, my_stack, comm_size):
-    # Process 0 will generate a list of comm_size partial tours .
-    # Memory wont be shared, it will send the initial partial tours to the ap
-    # So it will send many tours using scatter to each process  
-    # process 0 will need to send the initial tours to the appropriate process 
-    nprocs = comm_world.Get_size()
 
-    if my_rank == 0:
-        sendbuf = get_partial_tour()
-
-        # count: the size of each sub-task
-        ave, res = divmod(sendbuf.size, nprocs)
-        count = [ave + 1 if p < res else ave for p in range(nprocs)]
-        count = np.array(count)
-
-        # displacement: the starting index of each sub-task
-        displ = [sum(count[:p]) for p in range(nprocs)]
-        displ = np.array(displ)
-    else:
-        sendbuf = None
-        # initialize count on worker processes
-        count = np.zeros(nprocs, dtype=int)
-        displ = None
-
-    # broadcast count
-    comm_world.Bcast(count, root=0)
-
-    # initialize recvbuf on all processes
-    recvbuf = np.zeros(count[my_rank])
-
-    comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
-
-    print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
 
 
 def best_tour(tour):
@@ -183,16 +151,52 @@ def free_tour(curr_tour):
     return
 
 
+# HERE WE PARTITION THE TREE 
+# def partition_tree(my_rank, my_stack, comm_size):
+    # Process 0 will generate a list of comm_size partial tours .
+    # Memory wont be shared, it will send the initial partial tours to the ap
+    # So it will send many tours using scatter to each process  
+    # process 0 will need to send the initial tours to the appropriate process 
+nprocs = comm_world.Get_size()
 
+if my_rank == 0:
+    sendbuf = get_partial_tour()
+
+    # count: the size of each sub-task
+    ave, res = divmod(sendbuf.size, nprocs)
+    count = [ave + 1 if p < res else ave for p in range(nprocs)]
+    count = np.array(count)
+
+    # displacement: the starting index of each sub-task
+    displ = [sum(count[:p]) for p in range(nprocs)]
+    displ = np.array(displ)
+else:
+    sendbuf = None
+    # initialize count on worker processes
+    count = np.zeros(nprocs, dtype=int)
+    displ = None
+
+# broadcast count
+comm_world.Bcast(count, root=0)
+
+# initialize recvbuf on all processes
+recvbuf = np.zeros(count[my_rank])
+
+comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
+
+print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
 
 
 # main loop 
-partition_tree(my_rank, my_stack, comm_size)
+# partition_tree(my_rank, my_stack, comm_size)
 
 
 snd_buf_graph = np.array(graph, dtype=int)
 sent_adjacency = comm_world.bcast(snd_buf_graph, root = 0)
 
+# Now to create the partial tours and push it onto my_stack of my_rank
+for i in range(len(recvbuf)):
+    my_stack.append([0, recvbuf[i]])
 
 
 while not isEmpty(my_stack):
