@@ -33,10 +33,7 @@ graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1],
 
 cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
-# NOTE: Have Process 0 broadcast the adjacency matrix to all the processes 
-if my_rank == 0:
-    snd_buf = np.array(graph, dtype=int)
-    comm_world.bcast(snd_buf, root = 0)
+
     
 
 
@@ -191,6 +188,12 @@ def free_tour(curr_tour):
 
 # main loop 
 partition_tree(my_rank, my_stack, comm_size)
+
+
+snd_buf_graph = np.array(graph, dtype=int)
+sent_adjacency = comm_world.bcast(snd_buf_graph, root = 0)
+
+
 
 while not isEmpty(my_stack):
     curr_tour = my_stack.pop()
