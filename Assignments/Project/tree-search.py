@@ -35,7 +35,7 @@ cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
 # NOTE: Have Process 0 broadcas the adjacency matrix to all the processes 
 if my_rank == 0:
-    snd_buf = np.array(graph, dtype=np.intc)
+    snd_buf = np.array(graph, dtype=np.int)
     sent_adjacency = comm_world.bcast(snd_buf)
 
 
@@ -138,13 +138,10 @@ def partition_tree(my_rank, my_stack, comm_size):
 
         # now to equally divide the number of processes 
         # using reference: https://www.kth.se/blogs/pdc/2019/11/parallel-programming-in-python-mpi4py-part-2/
+        # using reference: https://stackoverflow.com/questions/36025188/along-what-axis-does-mpi4py-scatterv-function-split-a-numpy-array
 
-        # ave, res = divmod(snd_buf.size/(n-1), comm_size)
-        # print(f"ave {ave} res {res}")
-        # count = [ave + 1 if p < res else ave for p in range(comm_size)]
-        # count = np.array(count)
         split = np.array_split(partial_tours, comm_size, axis = 0)
-        print(f"This is split {split}")
+        # print(f"This is split {split}")
         
         split_sizes = []
 
@@ -155,17 +152,22 @@ def partition_tree(my_rank, my_stack, comm_size):
         # displ = [sum(count[:p]) for p in range(comm_size)]
         # displ = np.array(displ)
         split_sizes_input = split_sizes * (n-1)
-        displ = np.insert(np.cumsum(split_sizes_input), 0, 0)[0:-1]
+        
+        displacements_input = np.insert(np.cumsum(split_sizes_input), 0, 0)[0:-1]
+        print(f"this is displ {displacements_input}")
 
-        split_sizes_output = split_sizes*512
+        split_sizes_output = split_sizes* (n-1)
         displacements_output = np.insert(np.cumsum(split_sizes_output),0,0)[0:-1]
+
+        # print("Input data split into vectors of sizes %s" %split_sizes_input)
+        # print("Input data split with displacements of %s" %displacements_input)
+
         
     else:
         snd_buf = None
         # initialize count on worker processes
-        count = np.zeros(comm_size, dtype=np.intc)
-        displ = None
-
+        # count = np.zeros(comm_size, dtype=np.intc)
+        displacements_input = None
         split_sizes_input = None
         displacements_input = None
         split_sizes_output = None
@@ -173,9 +175,22 @@ def partition_tree(my_rank, my_stack, comm_size):
 
     # on all processes we have the initial rcv_buf 
     # recv_buf = np.zeros(count[my_rank])
-    recv_buf = np.empty(len(split_sizes))
 
-    comm_world.Scatterv([snd_buf, len(split), displ, MPI.INT], recv_buf, root = 0)
+    split = comm_world.bcast(split, root = 0)
+    split_sizes = comm_world.bcast(split_sizes_input, root = 0)
+    displacements = comm_world.bcast(displacements_input, root = 0)
+    split_sizes_output = comm_world.bcast(split_sizes_output, root = 0)
+    displacements_output = comm_world.bcast(displacements_output, root = 0) 
+
+    recv_buf = np.empty(np.shape(split[my_rank]))
+    # print(f"this is recv_buf {recv_buf} for process {my_rank}")
+
+    # print(f"this is snd_buf {snd_buf}")
+
+    # recv_buf = np.empty(np.shape(split[my_rank]))  
+    # print("Rank %d with recv_buf shape %s" %(my_rank,recv_buf.shape))
+
+    comm_world.Scatterv([snd_buf, split_sizes_input, displacements_input, MPI.INT], recv_buf, root = 0)
     
 
     print(f"After scatter this is the partial tour {recv_buf} with process {my_rank}")
