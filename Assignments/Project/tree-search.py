@@ -41,7 +41,7 @@ cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 n = 10
 my_stack = []
 # init to be higher than any possible value 
-best_tour = 1000000
+global_best_tour = 1000000
 # starting from the initial vertiex 
 hometown = graph[0]
 initial_tour = [hometown]
@@ -66,6 +66,8 @@ def clear_msg():
 
 def no_work_left():
     return
+
+
 
 def isEmpty(my_stack):
     return len(my_stack) == 0
@@ -128,18 +130,27 @@ def get_partial_tour():
 
 
 
-
-
 def best_tour(tour):
-    return
+    cost = 0
+    for i in range(len(tour) - 1):
+        cost += sent_adjacency[0][tour[i]][tour[i+1]]
+        print(f"this is cost {cost}")
+    if cost < global_best_tour:
+        # update global_best_tour 
+        return True
+
 
 # update the best tour
 def update_best_tour(tour):
+    # here we update the best tour using iprobe
     return
 
 # is the next tour feasible 
-def feasible(curr_tour, city):
-    return True
+# it checks to see if the city or vertex has already been visited 
+# if not, whether it can possibly lead to a least-cost tour 
+def feasible(curr_tour, city, visited):
+    if city not in visited:
+        return True
 
 def add_city(curr_tour, city):
     return
@@ -199,17 +210,23 @@ for i in range(len(recvbuf)):
     my_stack.append([0, recvbuf[i]])
 
 
+
 while not isEmpty(my_stack):
+    print(f"stack before pop {my_stack}")
     curr_tour = my_stack.pop()
-    
+    print(f"stack after pop {my_stack}")
+
     if city_count(curr_tour) == n:
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
     else:
         for city in range(n-1, 1, -1):
-            add_city(curr_tour, city)
-            push_copy(my_stack, curr_tour)
-            remove_last_city(curr_tour)
+            visited = set() 
+            visited.add(city)
+            if feasible(curr_tour, city, visited):
+                add_city(curr_tour, city)
+                # push_copy(my_stack, curr_tour)
+                remove_last_city(curr_tour)
 
     free_tour(curr_tour)
 
