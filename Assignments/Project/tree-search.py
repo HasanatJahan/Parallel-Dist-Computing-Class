@@ -33,10 +33,11 @@ graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1],
 
 cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
-# NOTE: Have Process 0 broadcas the adjacency matrix to all the processes 
+# NOTE: Have Process 0 broadcast the adjacency matrix to all the processes 
 if my_rank == 0:
-    snd_buf = np.array(graph, dtype=np.int)
-    sent_adjacency = comm_world.bcast(snd_buf)
+    snd_buf = np.array(graph, dtype=int)
+    comm_world.bcast(snd_buf, root = 0)
+    
 
 
 # Now the variables used for the MPI process 
@@ -121,79 +122,47 @@ def city_count(curr_tour):
 
 # We would like all the processes to have the copy of the adjacency matrix but since there is a shared graph this does not need to be distributed 
 # We build a parallel algorithm based on the second iterative solution 
+def get_partial_tour():
+    partial_tours = []
+    for i in range(1, 10):
+        partial_tours.append(float(i))
+
+    return np.array(partial_tours)
+
+
 def partition_tree(my_rank, my_stack, comm_size):
     # Process 0 will generate a list of comm_size partial tours .
     # Memory wont be shared, it will send the initial partial tours to the ap
     # So it will send many tours using scatter to each process  
     # process 0 will need to send the initial tours to the appropriate process 
-    partial_tours = []
-    split_sizes = []
-    split =[]
+    nprocs = comm_world.Get_size()
+
     if my_rank == 0:
-        # first to create the different partial tours 
-        for i in range(1, n):
-            partial_tours.append([0, i])
+        sendbuf = get_partial_tour()
 
-        snd_buf = np.array(partial_tours)
-
-        # now to equally divide the number of processes 
-        # using reference: https://www.kth.se/blogs/pdc/2019/11/parallel-programming-in-python-mpi4py-part-2/
-        # using reference: https://stackoverflow.com/questions/36025188/along-what-axis-does-mpi4py-scatterv-function-split-a-numpy-array
-
-        split = np.array_split(partial_tours, comm_size, axis = 0)
-        # print(f"This is split {split}")
-        
-        split_sizes = []
-
-        for i in range(0,len(split),1):
-            split_sizes = np.append(split_sizes, len(split[i]))
+        # count: the size of each sub-task
+        ave, res = divmod(sendbuf.size, nprocs)
+        count = [ave + 1 if p < res else ave for p in range(nprocs)]
+        count = np.array(count)
 
         # displacement: the starting index of each sub-task
-        # displ = [sum(count[:p]) for p in range(comm_size)]
-        # displ = np.array(displ)
-        split_sizes_input = split_sizes * (n-1)
-        
-        displacements_input = np.insert(np.cumsum(split_sizes_input), 0, 0)[0:-1]
-        print(f"this is displ {displacements_input}")
-
-        split_sizes_output = split_sizes* (n-1)
-        displacements_output = np.insert(np.cumsum(split_sizes_output),0,0)[0:-1]
-
-        # print("Input data split into vectors of sizes %s" %split_sizes_input)
-        # print("Input data split with displacements of %s" %displacements_input)
-
-        
+        displ = [sum(count[:p]) for p in range(nprocs)]
+        displ = np.array(displ)
     else:
-        snd_buf = None
+        sendbuf = None
         # initialize count on worker processes
-        # count = np.zeros(comm_size, dtype=np.intc)
-        displacements_input = None
-        split_sizes_input = None
-        displacements_input = None
-        split_sizes_output = None
-        displacements_output = None
+        count = np.zeros(nprocs, dtype=int)
+        displ = None
 
-    # on all processes we have the initial rcv_buf 
-    # recv_buf = np.zeros(count[my_rank])
+    # broadcast count
+    comm_world.Bcast(count, root=0)
 
-    split = comm_world.bcast(split, root = 0)
-    split_sizes = comm_world.bcast(split_sizes_input, root = 0)
-    displacements = comm_world.bcast(displacements_input, root = 0)
-    split_sizes_output = comm_world.bcast(split_sizes_output, root = 0)
-    displacements_output = comm_world.bcast(displacements_output, root = 0) 
+    # initialize recvbuf on all processes
+    recvbuf = np.zeros(count[my_rank])
 
-    recv_buf = np.empty(np.shape(split[my_rank]))
-    # print(f"this is recv_buf {recv_buf} for process {my_rank}")
+    comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
 
-    # print(f"this is snd_buf {snd_buf}")
-
-    # recv_buf = np.empty(np.shape(split[my_rank]))  
-    # print("Rank %d with recv_buf shape %s" %(my_rank,recv_buf.shape))
-
-    comm_world.Scatterv([snd_buf, split_sizes_input, displacements_input, MPI.INT], recv_buf, root = 0)
-    
-
-    print(f"After scatter this is the partial tour {recv_buf} with process {my_rank}")
+    print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
 
 
 def best_tour(tour):
