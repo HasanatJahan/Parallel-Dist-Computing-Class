@@ -34,8 +34,6 @@ graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1],
 cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
 
-    
-
 
 # Now the variables used for the MPI process 
 n = 10
@@ -45,6 +43,7 @@ global_best_tour = 1000000
 # starting from the initial vertiex 
 hometown = graph[0]
 initial_tour = [hometown]
+free_tour_dict = {}
 
 
 # functions for terminated 
@@ -102,6 +101,7 @@ def terminated(my_stack):
 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 def push_copy(stack, tour):
+    free_tour_dict[str(tour)] = 'visited'
     stack.append(tour)
 
 # 1. City_count examines the partial tour to see if there are n cities in the partial tour 
@@ -136,7 +136,6 @@ def best_tour(tour):
         cost += sent_adjacency[0][tour[i]][tour[i+1]]
         print(f"this is cost {cost}")
     if cost < global_best_tour:
-        # update global_best_tour 
         return True
 
 
@@ -152,14 +151,16 @@ def feasible(curr_tour, city, visited):
     if city not in visited:
         return True
 
+# take the current tour and append the city at the end
 def add_city(curr_tour, city):
-    return
+    curr_tour.append(city)
 
 def remove_last_city(curr_tour):
     curr_tour = curr_tour[:-1]
 
+# we can mitigate push copy costs by saving our free tours in a data structure 
 def free_tour(curr_tour):
-    return
+    free_tour_dict[str(curr_tour)] = "visited"
 
 
 # HERE WE PARTITION THE TREE 
@@ -220,8 +221,8 @@ while not isEmpty(my_stack):
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
     else:
+        visited = set() 
         for city in range(n-1, 1, -1):
-            visited = set() 
             visited.add(city)
             if feasible(curr_tour, city, visited):
                 add_city(curr_tour, city)
@@ -231,3 +232,4 @@ while not isEmpty(my_stack):
     free_tour(curr_tour)
 
 
+# at the end we reduce the value of the best tour and print it from process 0 
