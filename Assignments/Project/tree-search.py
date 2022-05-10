@@ -1,4 +1,7 @@
 # Name: Hasanat Jahan
+# NOTE: NOW TO WORK ON THE IPROBE TO GET THE BEST TOUR 
+# NOTE: ONCE THAT IS DONE AND WE CAN PRINT THE BEST TOUR SUCCESFULLY THEN WORK ON THE TERMINATION FUNCTION
+
 
 #!/usr/bin/env python3
 from mpi4py import MPI
@@ -16,7 +19,7 @@ comm_size = comm_world.Get_size()
 # Problem: Visit each city once and return to hometown with a minimum cost
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
 # Each node of the tree has an associated cost, ie, the cost of the partial tour. We use this to eliminate parts of the tree 
-# if we find a partial tour or node of teh tree that couldn't lead to a less expensive final tour, we don't bother searching there 
+# if we find a partial tour or node of the tree that couldn't lead to a less expensive final tour, we don't bother searching there 
 
 
 # graph representation as an adjacency matrix 
@@ -46,55 +49,55 @@ initial_tour = [hometown]
 free_tour_dict = {}
 
 
-# functions for terminated 
-def my_avail_tour_count():
-    return
+# # functions for terminated 
+# def my_avail_tour_count():
+#     return
 
-def fullfill_request(my_stack):
-    return
+# def fullfill_request(my_stack):
+#     return
 
 
-def send_rejects():
-    return
+# def send_rejects():
+#     return
 
-def out_of_work():
-    return 
+# def out_of_work():
+#     return 
 
-def clear_msg():
-    return
+# def clear_msg():
+#     return
 
-def no_work_left():
-    return
+# def no_work_left():
+#     return
 
 
 
 def isEmpty(my_stack):
     return len(my_stack) == 0
 
-# terminated function for dynamically partitioned solver with MPI 
-def terminated(my_stack):
-    if my_avail_tour_count(my_stack) >= 2:
-        fullfill_request(my_stack)
-        return False # still more work to do
-    # at most one available tour
-    else: 
-        send_rejects() #tell everyone that requested that I have none 
-        # there is still more work to do
-        if not isEmpty(my_stack):
-            return False
-        else:
-            if size == 1:
-                return True
+# # terminated function for dynamically partitioned solver with MPI 
+# def terminated(my_stack):
+#     if my_avail_tour_count(my_stack) >= 2:
+#         fullfill_request(my_stack)
+#         return False # still more work to do
+#     # at most one available tour
+#     else: 
+#         send_rejects() #tell everyone that requested that I have none 
+#         # there is still more work to do
+#         if not isEmpty(my_stack):
+#             return False
+#         else:
+#             if size == 1:
+#                 return True
 
-            out_of_work()
-            work_request_sent = False 
+#             out_of_work()
+#             work_request_sent = False 
 
-            while(True):
-                clear_msg()
+#             while(True):
+#                 clear_msg()
                 
-                # no more work left - quit 
-                if(no_work_left()):
-                    return True
+#                 # no more work left - quit 
+#                 if(no_work_left()):
+#                     return True
 
 
 # we represent partial tours as stack records 
@@ -129,19 +132,24 @@ def get_partial_tour():
     return np.array(partial_tours)
 
 
-
+# global best tour is a local variable 
 def best_tour(tour):
     cost = 0
+    # first we calculate the cost of the tour 
     for i in range(len(tour) - 1):
         cost += sent_adjacency[0][tour[i]][tour[i+1]]
-        print(f"this is cost {cost}")
+    # is it the smallest tour that it has found so far 
     if cost < global_best_tour:
+        global_best_tour = cost 
         return True
 
 
 # update the best tour
 def update_best_tour(tour):
     # here we update the best tour using iprobe
+    # test this out first 
+    # comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11, comm_world, msg_avail, )
+
     return
 
 # is the next tour feasible 
