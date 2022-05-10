@@ -104,8 +104,10 @@ def isEmpty(my_stack):
 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 def push_copy(stack, tour):
+    print(f"is push copy being called")
     free_tour_dict[str(tour)] = 'visited'
     stack.append(tour)
+    print(f"this is my stack after append in pushcopy {stack}")
 
 # 1. City_count examines the partial tour to see if there are n cities in the partial tour 
 def city_count(curr_tour):
@@ -189,6 +191,7 @@ def free_tour(curr_tour):
     free_tour_dict[str(curr_tour)] = "visited"
 
 
+#########################################################
 # HERE WE PARTITION THE TREE 
 # def partition_tree(my_rank, my_stack, comm_size):
     # Process 0 will generate a list of comm_size partial tours .
@@ -222,12 +225,12 @@ recvbuf = np.zeros(count[my_rank])
 
 comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
 
-print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
-
+# print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
+########################################################
+# tree partition ends here 
 
 # main loop 
 # partition_tree(my_rank, my_stack, comm_size)
-
 
 snd_buf_graph = np.array(graph, dtype=int)
 sent_adjacency = comm_world.bcast(snd_buf_graph, root = 0)
@@ -239,9 +242,9 @@ for i in range(len(recvbuf)):
 
 
 while not isEmpty(my_stack):
-    print(f"stack before pop {my_stack}")
+    # print(f"stack before pop {my_stack}")
     curr_tour = my_stack.pop()
-    print(f"stack after pop {my_stack}")
+    # print(f"stack after pop {my_stack}")
 
     if city_count(curr_tour) == n:
         print("does it enter this loop")
@@ -250,11 +253,12 @@ while not isEmpty(my_stack):
     else:
         visited = set() 
         for city in range(n-1, 1, -1):
-            visited.add(city)
             if feasible(curr_tour, city, visited):
                 add_city(curr_tour, city)
                 push_copy(my_stack, curr_tour)
                 remove_last_city(curr_tour)
+
+            visited.add(city)
 
     free_tour(curr_tour)
 
