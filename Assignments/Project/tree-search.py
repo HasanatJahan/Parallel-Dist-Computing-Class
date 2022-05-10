@@ -136,6 +136,7 @@ def get_partial_tour():
 def best_tour(tour):
     cost = 0
     # first we calculate the cost of the tour 
+    # NOTE: it was not checked if cost function is working or not 
     for i in range(len(tour) - 1):
         cost += sent_adjacency[0][tour[i]][tour[i+1]]
     # is it the smallest tour that it has found so far 
@@ -146,9 +147,26 @@ def best_tour(tour):
 
 # update the best tour
 def update_best_tour(tour):
-    # here we update the best tour using iprobe
-    # test this out first 
-    # comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11, comm_world, msg_avail, )
+    snd_buf = np.array(global_best_tour, dtype=np.intc)
+
+    for dest in range(0, comm_size):
+     if dest != rank:
+          # use a synchronous send or a non-blocking send 
+          comm_world.isend(snd_buf, dest, tag=11)
+    
+    comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
+    while comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11):
+     received_cost = comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
+     if received_cost < global_best_tour:
+          global_best_tour = received_cost
+     comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
+
+    rcv_buf = np.empty((), dtype=np.intc)
+    new_snd_buf = np.array(global_best_tour, dtype=np.intc)
+    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+
+    print(f"My rank {rank} and then the min {rcv_buf}")
+
 
     return
 
@@ -226,6 +244,7 @@ while not isEmpty(my_stack):
     print(f"stack after pop {my_stack}")
 
     if city_count(curr_tour) == n:
+        print("does it enter this loop")
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
     else:
@@ -234,7 +253,7 @@ while not isEmpty(my_stack):
             visited.add(city)
             if feasible(curr_tour, city, visited):
                 add_city(curr_tour, city)
-                # push_copy(my_stack, curr_tour)
+                push_copy(my_stack, curr_tour)
                 remove_last_city(curr_tour)
 
     free_tour(curr_tour)
