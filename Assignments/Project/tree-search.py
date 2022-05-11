@@ -15,6 +15,8 @@ status = MPI.Status()
 comm_world = MPI.COMM_WORLD
 my_rank = comm_world.Get_rank()
 comm_size = comm_world.Get_size()
+global_best_tour = 1000000
+
 
 # Problem: Visit each city once and return to hometown with a minimum cost
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
@@ -42,7 +44,6 @@ cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 n = 10
 my_stack = []
 # init to be higher than any possible value 
-global_best_tour = 1000000
 # starting from the initial vertiex 
 hometown = graph[0]
 initial_tour = [hometown]
@@ -87,13 +88,13 @@ def get_partial_tour():
 
 # global best tour is a local variable 
 def best_tour(tour):
+    global global_best_tour
     cost = 0
     # first we calculate the cost of the tour 
     # NOTE: it was not checked if cost function is working or not 
-    print(f"this is sent adjacency ceroero {sent_adjacency[0]}")
     
     for i in range(len(tour) - 1):
-        cost += sent_adjacency[0][tour[i]][tour[i+1]]
+        cost += sent_adjacency[tour[i]][tour[i+1]]
     
     cost += sent_adjacency[tour[len(tour) -1]][0] 
     # is it the smallest tour that it has found so far 
@@ -104,10 +105,12 @@ def best_tour(tour):
 
 # update the best tour
 def update_best_tour(tour):
+    global global_best_tour
+
     snd_buf = np.array(global_best_tour, dtype=np.intc)
 
     for dest in range(0, comm_size):
-     if dest != rank:
+     if dest != my_rank:
           # use a synchronous send or a non-blocking send 
           comm_world.isend(snd_buf, dest, tag=11)
     
@@ -122,7 +125,7 @@ def update_best_tour(tour):
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
     comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
-    print(f"My rank {rank} and then the min {rcv_buf}")
+    print(f"My rank {my_rank} and then the min {rcv_buf}")
 
 
     return
