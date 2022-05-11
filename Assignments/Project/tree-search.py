@@ -25,23 +25,29 @@ global_best_tour = 1000000
 
 
 # graph representation as an adjacency matrix 
-graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1], 
-        [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
-        [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
-        [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
-        [1, 4, 5, 1, 0, 1, 1, 1, 1, 1],
-        [1, 4, 5, 1, 1, 0, 1, 1, 1, 1],
-        [1, 4, 5, 1, 1, 1, 0, 1, 1, 1],
-        [1, 4, 5, 1, 1, 1, 1, 0, 1, 1],
-        [1, 4, 5, 1, 1, 1, 1, 1, 0, 1],
-        [1, 4, 5, 1, 1, 1, 1, 1, 1, 0]]
+# graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1], 
+#         [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
+#         [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
+#         [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
+#         [1, 4, 5, 1, 0, 1, 1, 1, 1, 1],
+#         [1, 4, 5, 1, 1, 0, 1, 1, 1, 1],
+#         [1, 4, 5, 1, 1, 1, 0, 1, 1, 1],
+#         [1, 4, 5, 1, 1, 1, 1, 0, 1, 1],
+#         [1, 4, 5, 1, 1, 1, 1, 1, 0, 1],
+#         [1, 4, 5, 1, 1, 1, 1, 1, 1, 0]]
+
+graph = [[0, 3, 1, 1],
+         [1, 0, 0, 1],
+         [1, 1, 0, 1], 
+         [1, 1, 1, 0]]
 
 cities = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"]
 
 
 
 # Now the variables used for the MPI process 
-n = 10
+# n = 10
+n = 4
 my_stack = []
 # init to be higher than any possible value 
 # starting from the initial vertiex 
@@ -80,7 +86,7 @@ def city_count(curr_tour):
 # We build a parallel algorithm based on the second iterative solution 
 def get_partial_tour():
     partial_tours = []
-    for i in range(1, 10):
+    for i in range(1, n):
         partial_tours.append(float(i))
 
     return np.array(partial_tours)
@@ -192,7 +198,6 @@ recvbuf = np.zeros(count[my_rank])
 
 comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
 
-# print('After Scatterv, process {} has data:'.format(my_rank), recvbuf)
 ########################################################
 # tree partition ends here 
 
@@ -210,7 +215,6 @@ for i in range(len(recvbuf)):
 
 while not isEmpty(my_stack):
     curr_tour = my_stack.pop()
-    print(f"current tour {curr_tour}")
     if city_count(curr_tour) == n:
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
