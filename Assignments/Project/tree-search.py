@@ -104,10 +104,8 @@ def isEmpty(my_stack):
 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 def push_copy(stack, tour):
-    print(f"is push copy being called")
     free_tour_dict[str(tour)] = 'visited'
     stack.append(tour)
-    print(f"this is my stack after append in pushcopy {stack}")
 
 # 1. City_count examines the partial tour to see if there are n cities in the partial tour 
 def city_count(curr_tour):
@@ -139,6 +137,8 @@ def best_tour(tour):
     cost = 0
     # first we calculate the cost of the tour 
     # NOTE: it was not checked if cost function is working or not 
+    print(f"this is sent adjacency ceroero {sent_adjacency[0]}")
+    
     for i in range(len(tour) - 1):
         cost += sent_adjacency[0][tour[i]][tour[i+1]]
     # is it the smallest tour that it has found so far 
@@ -167,7 +167,7 @@ def update_best_tour(tour):
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
     comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
-    print(f"My rank {rank} and then the min {rcv_buf}")
+    # print(f"My rank {rank} and then the min {rcv_buf}")
 
 
     return
@@ -176,6 +176,14 @@ def update_best_tour(tour):
 # it checks to see if the city or vertex has already been visited 
 # if not, whether it can possibly lead to a least-cost tour 
 def feasible(curr_tour, city, visited):
+    # feasible should also check if 
+    for i in range(len(curr_tour)-1):
+        if sent_adjacency[curr_tour[i]][curr_tour[i+1]] == 0:
+            return False        
+    
+    if sent_adjacency[curr_tour[len(curr_tour) -1]][0] == 0:
+            return False 
+
     if city not in visited:
         return True
 
@@ -236,22 +244,22 @@ snd_buf_graph = np.array(graph, dtype=int)
 sent_adjacency = comm_world.bcast(snd_buf_graph, root = 0)
 
 # Now to create the partial tours and push it onto my_stack of my_rank
+visited = set() 
+
 for i in range(len(recvbuf)):
-    my_stack.append([0, recvbuf[i]])
+    my_stack.append([0, int(recvbuf[i])])
+    visited.add(int(recvbuf[i]))
 
 
 
 while not isEmpty(my_stack):
-    # print(f"stack before pop {my_stack}")
     curr_tour = my_stack.pop()
-    # print(f"stack after pop {my_stack}")
 
     if city_count(curr_tour) == n:
-        print("does it enter this loop")
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
     else:
-        visited = set() 
+        # visited = set() 
         for city in range(n-1, 1, -1):
             if feasible(curr_tour, city, visited):
                 add_city(curr_tour, city)
