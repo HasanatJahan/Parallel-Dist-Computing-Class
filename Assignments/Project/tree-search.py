@@ -49,55 +49,8 @@ initial_tour = [hometown]
 free_tour_dict = {}
 
 
-# # functions for terminated 
-# def my_avail_tour_count():
-#     return
-
-# def fullfill_request(my_stack):
-#     return
-
-
-# def send_rejects():
-#     return
-
-# def out_of_work():
-#     return 
-
-# def clear_msg():
-#     return
-
-# def no_work_left():
-#     return
-
-
-
 def isEmpty(my_stack):
     return len(my_stack) == 0
-
-# # terminated function for dynamically partitioned solver with MPI 
-# def terminated(my_stack):
-#     if my_avail_tour_count(my_stack) >= 2:
-#         fullfill_request(my_stack)
-#         return False # still more work to do
-#     # at most one available tour
-#     else: 
-#         send_rejects() #tell everyone that requested that I have none 
-#         # there is still more work to do
-#         if not isEmpty(my_stack):
-#             return False
-#         else:
-#             if size == 1:
-#                 return True
-
-#             out_of_work()
-#             work_request_sent = False 
-
-#             while(True):
-#                 clear_msg()
-                
-#                 # no more work left - quit 
-#                 if(no_work_left()):
-#                     return True
 
 
 # we represent partial tours as stack records 
@@ -141,6 +94,8 @@ def best_tour(tour):
     
     for i in range(len(tour) - 1):
         cost += sent_adjacency[0][tour[i]][tour[i+1]]
+    
+    cost += sent_adjacency[tour[len(tour) -1]][0] 
     # is it the smallest tour that it has found so far 
     if cost < global_best_tour:
         global_best_tour = cost 
@@ -167,7 +122,7 @@ def update_best_tour(tour):
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
     comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
-    # print(f"My rank {rank} and then the min {rcv_buf}")
+    print(f"My rank {rank} and then the min {rcv_buf}")
 
 
     return
@@ -182,9 +137,10 @@ def feasible(curr_tour, city, visited):
             return False        
     
     if sent_adjacency[curr_tour[len(curr_tour) -1]][0] == 0:
-            return False 
+        return False 
 
-    if city not in visited:
+    # if city not in visited:
+    if city not in curr_tour:
         return True
 
 # take the current tour and append the city at the end
@@ -238,8 +194,6 @@ comm_world.Scatterv([sendbuf, count, displ, MPI.DOUBLE], recvbuf, root=0)
 # tree partition ends here 
 
 # main loop 
-# partition_tree(my_rank, my_stack, comm_size)
-
 snd_buf_graph = np.array(graph, dtype=int)
 sent_adjacency = comm_world.bcast(snd_buf_graph, root = 0)
 
@@ -248,27 +202,25 @@ visited = set()
 
 for i in range(len(recvbuf)):
     my_stack.append([0, int(recvbuf[i])])
-    visited.add(int(recvbuf[i]))
-
+    # visited.add(int(recvbuf[i]))
 
 
 while not isEmpty(my_stack):
     curr_tour = my_stack.pop()
-
+    print(f"current tour {curr_tour}")
     if city_count(curr_tour) == n:
         if best_tour(curr_tour):
             update_best_tour(curr_tour)
     else:
         # visited = set() 
-        for city in range(n-1, 1, -1):
+        for city in range(n-1, 0, -1):
             if feasible(curr_tour, city, visited):
                 add_city(curr_tour, city)
                 push_copy(my_stack, curr_tour)
                 remove_last_city(curr_tour)
 
-            visited.add(city)
+                visited.add(city)
 
     free_tour(curr_tour)
-
 
 # at the end we reduce the value of the best tour and print it from process 0 
