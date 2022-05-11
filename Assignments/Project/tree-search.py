@@ -65,14 +65,6 @@ def city_count(curr_tour):
 
 
 
-# we would represent each tour with an array so we could have something like 0 -> 2 -> 3, 13 
-# NOTE: 
-# 1. City_count examines the partial tour to see if there are n cities in the partial tour 
-# 2. Best_tour: we can check if the current complete tour has a lower cost than the current "best tour" 
-# 3. Update_best_tour: we can replace the current best tour by calling this function 
-# 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
-
-
 # We would like all the processes to have the copy of the adjacency matrix but since there is a shared graph this does not need to be distributed 
 # We build a parallel algorithm based on the second iterative solution 
 def get_partial_tour():
@@ -122,10 +114,11 @@ def update_best_tour(tour):
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
     comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
-    print(f"My rank {my_rank} and then the min {rcv_buf}")
 
+    if my_rank == 0:
+        print(f"The best tour is {tour}")
+        print(f"The cost of the best tour is {global_best_tour}")
 
-    return
 
 # is the next tour feasible 
 # it checks to see if the city or vertex has already been visited 
@@ -221,4 +214,5 @@ while not isEmpty(my_stack):
 
     free_tour(curr_tour)
 
-# at the end we reduce the value of the best tour and print it from process 0 
+
+
