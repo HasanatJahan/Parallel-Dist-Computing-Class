@@ -1,7 +1,4 @@
 # Name: Hasanat Jahan
-# NOTE: NOW TO WORK ON THE IPROBE TO GET THE BEST TOUR 
-# NOTE: ONCE THAT IS DONE AND WE CAN PRINT THE BEST TOUR SUCCESFULLY THEN WORK ON THE TERMINATION FUNCTION
-
 
 #!/usr/bin/env python3
 from mpi4py import MPI
@@ -16,12 +13,12 @@ comm_world = MPI.COMM_WORLD
 my_rank = comm_world.Get_rank()
 comm_size = comm_world.Get_size()
 global_best_tour = 1000000
+global_best_path =[]
 
 
 # Problem: Visit each city once and return to hometown with a minimum cost
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
 # Each node of the tree has an associated cost, ie, the cost of the partial tour. We use this to eliminate parts of the tree 
-# if we find a partial tour or node of the tree that couldn't lead to a less expensive final tour, we don't bother searching there 
 
 
 # graph representation as an adjacency matrix 
@@ -42,9 +39,8 @@ n = 10
 my_stack = []
 # init to be higher than any possible value 
 # starting from the initial vertiex 
-hometown = graph[0]
-initial_tour = [hometown]
 free_tour_dict = {}
+cost_to_tour_mapping = {}
 
 
 def isEmpty(my_stack):
@@ -79,9 +75,7 @@ def get_partial_tour():
 def best_tour(tour):
     global global_best_tour
     cost = 0
-    # first we calculate the cost of the tour 
-    # NOTE: it was not checked if cost function is working or not 
-    
+    # first we calculate the cost of the tour     
     for i in range(len(tour) - 1):
         cost += sent_adjacency[tour[i]][tour[i+1]]
     
@@ -95,8 +89,11 @@ def best_tour(tour):
 # update the best tour
 def update_best_tour(tour):
     global global_best_tour
+    global global_best_path
 
-    snd_buf = np.array(global_best_tour, dtype=np.intc)
+    snd_buf = tour, np.array(global_best_tour, dtype=np.intc)
+    tour_cost = (tour, global_best_tour)
+    snd_buf = np.asarray(tour_cost)
 
     for dest in range(0, comm_size):
      if dest != my_rank:
@@ -105,20 +102,40 @@ def update_best_tour(tour):
     
     comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
     while comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11):
-     received_cost = comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
-     if received_cost < global_best_tour:
-          global_best_tour = received_cost
-     comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
+        received_payload= comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
+        received_tour = received_payload[0]
+        received_cost = received_payload[1]
+        if received_cost < global_best_tour:
+            global_best_tour = received_cost
+            global_best_path = received_tour
+        comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
 
     rcv_buf = np.empty((), dtype=np.intc)
-    new_snd_buf = np.array(global_best_tour, dtype=np.intc)
-    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+
+    new_tour_cost = (global_best_path, global_best_tour)
+    new_snd_buf = np.asarray(new_tour_cost)
+    # new_snd_buf = np.array(new_tour_cost, dtype=np.intc)
+    # comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.Op.Create(handler, commute=True) )
 
 
+    print(f"The best tour is {tour}")
+    print(f"The cost of the best tour is {global_best_tour}")
+
+    # NOTE: WHERE TO GET THE BEST TOUR - HOW CAN I TELL WHICH TOUR WAS THE BEST
     if my_rank == 0:
+        tour.append(0)
         print(f"The best tour is {tour}")
         print(f"The cost of the best tour is {global_best_tour}")
 
+
+def handler(x,y, datatype):
+    print("handler" ,x, y)
+    if y[1] < x[1]:
+        return y 
+
+    else:
+        return x
 
 # is the next tour feasible 
 # it checks to see if the city or vertex has already been visited 
@@ -147,14 +164,10 @@ def remove_last_city(curr_tour):
 def free_tour(curr_tour):
     free_tour_dict[str(curr_tour)] = "visited"
 
+print(free_tour_dict)
 
 #########################################################
-# HERE WE PARTITION THE TREE 
-# def partition_tree(my_rank, my_stack, comm_size):
-    # Process 0 will generate a list of comm_size partial tours .
-    # Memory wont be shared, it will send the initial partial tours to the ap
-    # So it will send many tours using scatter to each process  
-    # process 0 will need to send the initial tours to the appropriate process 
+# PARTITION THE TREE 
 nprocs = comm_world.Get_size()
 
 if my_rank == 0:
@@ -194,7 +207,6 @@ visited = set()
 
 for i in range(len(recvbuf)):
     my_stack.append([0, int(recvbuf[i])])
-    # visited.add(int(recvbuf[i]))
 
 
 while not isEmpty(my_stack):
