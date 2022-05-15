@@ -112,13 +112,23 @@ def update_best_tour(tour):
 
     rcv_buf = np.empty((), dtype=np.intc)
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
-    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+    custom_op = MPI.Op.Create(handler, commute = True)
+    comm_world.Allreduce(new_snd_buf, rcv_buf, op=custom_op)
 
 
     if my_rank == 0:
         print(f"The best tour is {tour}")
         print(f"The cost of the best tour is {global_best_tour}")
 
+
+def handler(xmem, ymem, datatype):
+
+    x = np.frombuffer(xmem, dtype=np.intc)
+    y = np.frombuffer(ymem, dtype=np.intc)
+
+    if x > y :
+        return y 
+    return x 
 
 # is the next tour feasible 
 # it checks to see if the city or vertex has already been visited 
