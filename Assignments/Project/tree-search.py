@@ -16,6 +16,8 @@ comm_world = MPI.COMM_WORLD
 my_rank = comm_world.Get_rank()
 comm_size = comm_world.Get_size()
 global_best_tour = 1000000
+global_best_path = []
+best_results = {}
 
 
 # Problem: Visit each city once and return to hometown with a minimum cost
@@ -25,15 +27,15 @@ global_best_tour = 1000000
 
 
 # graph representation as an adjacency matrix 
-graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1], 
+graph = [[0, 5, 5, 1, 1, 1, 1, 1, 1, 1], 
         [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
-        [1, 4, 5, 1, 0, 1, 1, 1, 1, 1],
+        [1, 4, 5, 1, 0, 2, 1, 1, 1, 1],
         [1, 4, 5, 1, 1, 0, 1, 1, 1, 1],
-        [1, 4, 5, 1, 1, 1, 0, 1, 1, 1],
-        [1, 4, 5, 1, 1, 1, 1, 0, 1, 1],
-        [1, 4, 5, 1, 1, 1, 1, 1, 0, 1],
+        [2, 4, 5, 1, 1, 1, 0, 1, 1, 1],
+        [1, 4, 5, 1, 1, 1, 1, 0, 2, 4],
+        [1, 4, 1, 56, 1, 1, 4, 1, 0, 4],
         [1, 4, 5, 1, 1, 1, 1, 1, 1, 0]]
 
 
@@ -41,17 +43,13 @@ graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1],
 n = 10
 my_stack = []
 # init to be higher than any possible value 
-# starting from the initial vertiex 
-hometown = graph[0]
-initial_tour = [hometown]
+# starting from the initial vertex 
 free_tour_dict = {}
 
 
 def isEmpty(my_stack):
     return len(my_stack) == 0
 
-
-# we represent partial tours as stack records 
 
 # 4. Push_copy makes the function create a copy of the tour before actually pushing it onto the stack 
 def push_copy(stack, tour):
@@ -75,12 +73,10 @@ def get_partial_tour():
     return np.array(partial_tours)
 
 
-# global best tour is a local variable 
 def best_tour(tour):
     global global_best_tour
     cost = 0
     # first we calculate the cost of the tour 
-    # NOTE: it was not checked if cost function is working or not 
     
     for i in range(len(tour) - 1):
         cost += sent_adjacency[tour[i]][tour[i+1]]
@@ -95,29 +91,36 @@ def best_tour(tour):
 # update the best tour
 def update_best_tour(tour):
     global global_best_tour
+    global global_best_path
+    global best_results
 
-    snd_buf = np.array(global_best_tour, dtype=np.intc)
+    # snd_buf = np.array(global_best_tour, dtype=np.intc)
+    tour_cost = (tour, global_best_tour)
+    snd_buf = np.asarray(tour_cost, dtype=object)
 
     for dest in range(0, comm_size):
-     if dest != my_rank:
-          # use a synchronous send or a non-blocking send 
-          comm_world.isend(snd_buf, dest, tag=11)
+        if dest != my_rank:
+            # use a synchronous send or a non-blocking send 
+            comm_world.isend(snd_buf, dest, tag=11)
     
     comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
     while comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11):
-     received_cost = comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
-     if received_cost < global_best_tour:
-          global_best_tour = received_cost
-     comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
+        received_payload = comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
+        received_tour = received_payload[0]
+        received_cost = received_payload[1]     
+        if received_cost <= global_best_tour:
+            global_best_tour = received_cost
+            global_best_path = received_tour
+        comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
 
     rcv_buf = np.empty((), dtype=np.intc)
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
-    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+    # comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
 
-    if my_rank == 0:
-        print(f"The best tour is {tour}")
-        print(f"The cost of the best tour is {global_best_tour}")
+    # print(f"The best tour is {tour}")
+    # print(f"The cost of the best tour is {global_best_tour}")
+    best_results.update({global_best_tour : global_best_path})
 
 
 # is the next tour feasible 
@@ -213,6 +216,17 @@ while not isEmpty(my_stack):
                 visited.add(city)
 
     free_tour(curr_tour)
+
+
+if my_rank == 0:
+    # iterate through the keys and find the best result
+    min_cost = 20000
+    for cost in best_results:
+        if cost < min_cost:
+            min_cost = cost 
+
+    print(f"The best tour is {best_results[cost]} with the cost of {cost}")
+
 
 
 
