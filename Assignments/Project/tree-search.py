@@ -22,7 +22,7 @@ global_best_path =[]
 
 
 # graph representation as an adjacency matrix 
-graph = [[0, 4, 5, 1, 1, 1, 1, 1, 1, 1], 
+graph = [[0, 2, 5, 1, 1, 1, 1, 1, 1, 1], 
         [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
@@ -40,7 +40,6 @@ my_stack = []
 # init to be higher than any possible value 
 # starting from the initial vertiex 
 free_tour_dict = {}
-cost_to_tour_mapping = {}
 
 
 def isEmpty(my_stack):
@@ -105,7 +104,8 @@ def update_best_tour(tour):
         received_payload= comm_world.recv(source=MPI.ANY_SOURCE, tag=11)
         received_tour = received_payload[0]
         received_cost = received_payload[1]
-        if received_cost < global_best_tour:
+
+        if received_cost <= global_best_tour:
             global_best_tour = received_cost
             global_best_path = received_tour
         comm_world.Iprobe(MPI.ANY_SOURCE, tag = 11)
@@ -113,18 +113,18 @@ def update_best_tour(tour):
     rcv_buf = np.empty((), dtype=np.intc)
 
     new_tour_cost = (global_best_path, global_best_tour)
-    new_snd_buf = np.asarray(new_tour_cost)
+    # print(f"new tour cost {new_tour_cost}")
+    # new_snd_buf = np.asarray(new_tour_cost)
+
+    new_snd_buf = np.array(global_best_tour, dtype=np.intc)
     # new_snd_buf = np.array(new_tour_cost, dtype=np.intc)
-    comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
+
+    # comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
 
-    print(f"The best tour is {tour}")
-    print(f"The cost of the best tour is {global_best_tour}")
-
-    # NOTE: WHERE TO GET THE BEST TOUR - HOW CAN I TELL WHICH TOUR WAS THE BEST
     if my_rank == 0:
         tour.append(0)
-        print(f"The best tour is {tour}")
+        print(f"The best tour is {global_best_path}")
         print(f"The cost of the best tour is {global_best_tour}")
 
 
@@ -156,7 +156,7 @@ def remove_last_city(curr_tour):
 def free_tour(curr_tour):
     free_tour_dict[str(curr_tour)] = "visited"
 
-print(free_tour_dict)
+# print(free_tour_dict)
 
 #########################################################
 # PARTITION THE TREE 
