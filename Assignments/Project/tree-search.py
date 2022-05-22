@@ -1,6 +1,4 @@
 # Name: Hasanat Jahan
-# NOTE: NOW TO WORK ON THE IPROBE TO GET THE BEST TOUR 
-# NOTE: ONCE THAT IS DONE AND WE CAN PRINT THE BEST TOUR SUCCESFULLY THEN WORK ON THE TERMINATION FUNCTION
 
 
 #!/usr/bin/env python3
@@ -22,28 +20,23 @@ best_results = {}
 
 # Problem: Visit each city once and return to hometown with a minimum cost
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
-# Each node of the tree has an associated cost, ie, the cost of the partial tour. We use this to eliminate parts of the tree 
-# if we find a partial tour or node of the tree that couldn't lead to a less expensive final tour, we don't bother searching there 
-
 
 # graph representation as an adjacency matrix 
-graph = [[0, 5, 5, 1, 1, 1, 1, 1, 1, 1], 
-        [1, 0, 5, 1, 1, 1, 1, 1, 1, 1],
+graph = [[0, 1, 5, 1, 1, 1, 1, 1, 1, 1], 
+        [2, 0, 2, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
         [1, 4, 5, 1, 0, 2, 1, 1, 1, 1],
         [1, 4, 5, 1, 1, 0, 1, 1, 1, 1],
         [2, 4, 5, 1, 1, 1, 0, 1, 1, 1],
         [1, 4, 5, 1, 1, 1, 1, 0, 2, 4],
-        [1, 4, 1, 56, 1, 1, 4, 1, 0, 4],
+        [1, 4, 1, 1, 1, 1, 4, 1, 0, 1],
         [1, 4, 5, 1, 1, 1, 1, 1, 1, 0]]
 
 
 # Now the variables used for the MPI process 
 n = 10
 my_stack = []
-# init to be higher than any possible value 
-# starting from the initial vertex 
 free_tour_dict = {}
 
 
@@ -63,7 +56,6 @@ def city_count(curr_tour):
 
 
 
-# We would like all the processes to have the copy of the adjacency matrix but since there is a shared graph this does not need to be distributed 
 # We build a parallel algorithm based on the second iterative solution 
 def get_partial_tour():
     partial_tours = []
@@ -94,7 +86,6 @@ def update_best_tour(tour):
     global global_best_path
     global best_results
 
-    # snd_buf = np.array(global_best_tour, dtype=np.intc)
     tour_cost = (tour, global_best_tour)
     snd_buf = np.asarray(tour_cost, dtype=object)
 
@@ -115,11 +106,7 @@ def update_best_tour(tour):
 
     rcv_buf = np.empty((), dtype=np.intc)
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
-    # comm_world.Allreduce(new_snd_buf, rcv_buf, op=MPI.MIN)
 
-
-    # print(f"The best tour is {tour}")
-    # print(f"The cost of the best tour is {global_best_tour}")
     best_results.update({global_best_tour : global_best_path})
 
 
@@ -152,12 +139,8 @@ def free_tour(curr_tour):
 
 
 #########################################################
-# HERE WE PARTITION THE TREE 
-# def partition_tree(my_rank, my_stack, comm_size):
-    # Process 0 will generate a list of comm_size partial tours .
-    # Memory wont be shared, it will send the initial partial tours to the ap
-    # So it will send many tours using scatter to each process  
-    # process 0 will need to send the initial tours to the appropriate process 
+# Partition the Tree 
+
 nprocs = comm_world.Get_size()
 
 if my_rank == 0:
@@ -197,7 +180,6 @@ visited = set()
 
 for i in range(len(recvbuf)):
     my_stack.append([0, int(recvbuf[i])])
-    # visited.add(int(recvbuf[i]))
 
 
 while not isEmpty(my_stack):
