@@ -244,6 +244,12 @@ def check_for_work(request_sent_status, work_available):
     pass
 
 
+def received_work(stack):
+    while comm_world.Iprobe(MPI.ANY_SOURCE, tag = 13):
+        received_payload = comm_world.recv(source=MPI.ANY_SOURCE, tag=13)
+        print("received work", my_rank, received_payload)
+        np.append(stack, received_payload)
+
 def terminated_function(my_stack):
     # check if we have something to send 
     if len(my_stack) >= 2 :
@@ -269,11 +275,7 @@ def terminated_function(my_stack):
             while True:
                 clear_msg()
 
-                #if no_work_left() or True:
-                if False:
-                    return True
-
-                elif not work_request_sent:
+                if not work_request_sent:
                     send_work_request()
                     work_request_sent= True
 
@@ -295,6 +297,7 @@ if my_rank == 0:
         if cost < min_cost:
             min_cost = cost 
 
+    best_results[cost].append(0)
     print(f"The best tour is {best_results[cost]} with the cost of {cost}")
 
 
