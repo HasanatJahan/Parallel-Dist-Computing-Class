@@ -22,7 +22,7 @@ best_results = {}
 # In searching for solutions, we build a tree. The leaves of the tree correspond to tours and the nodes represent partial tours 
 
 # graph representation as an adjacency matrix 
-graph = [[0, 1, 5, 1, 1, 1, 1, 1, 1, 1], 
+graph = [[0, 2, 5, 1, 1, 1, 1, 1, 1, 1], 
         [2, 0, 2, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 0, 1, 1, 1, 1, 1, 1, 1],
         [1, 4, 5, 0, 1, 1, 1, 1, 1, 1],
@@ -108,6 +108,8 @@ def update_best_tour(tour):
     new_snd_buf = np.array(global_best_tour, dtype=np.intc)
 
     best_results.update({global_best_tour : global_best_path})
+
+
 
 
 # is the next tour feasible 
@@ -198,6 +200,92 @@ while not isEmpty(my_stack):
                 visited.add(city)
 
     free_tour(curr_tour)
+
+
+
+# Termination Function Portion
+
+# sending the unfinished stack to other requesting process
+def fulfill_request(my_stack):
+    # iprobing the requset from  other processes
+    #comm_world.Iprobe(MPI.ANY_SOURCE, tag = 12)
+    if comm_world.Iprobe(MPI.ANY_SOURCE, tag = 12):
+         dest_proces_address = comm_world.recv(source=MPI.ANY_SOURCE, tag=12)
+         print("dest process address" , dest_proces_address)
+         stack_buf = np.asarray(my_stack[0], dtype=int)
+         stack_packed_buf = np.empty((), dtype=np.intc)
+         my_stack = my_stack[0: len(my_stack) ]
+
+         comm_world.isend(stack_buf, dest_proces_address, tag=13)
+
+
+# Rejects the other process request for more work
+def send_reject():
+    pass
+
+def out_of_work():
+    pass
+
+#sending work request to request to everyone 
+def send_work_request():
+    for dest in range(0, comm_size):
+        comm_world.isend(my_rank, dest, tag=12)
+
+
+def clear_msg():
+    pass
+
+
+def no_work_left():
+    return True
+
+
+def check_for_work(request_sent_status, work_available):
+    pass
+
+
+def terminated_function(my_stack):
+    # check if we have something to send 
+    if len(my_stack) >= 2 :
+        fulfill_request(my_stack)
+
+        return False
+    else:
+        send_reject()
+        
+        # if this process is getting the work from other processes
+        if not isEmpty(my_stack):
+            return False
+
+        else:
+            # if there is one process exit
+            if comm_size == 1: 
+                return True
+
+            out_of_work()
+            work_request_sent = False
+            work_available = True
+
+            while True:
+                clear_msg()
+
+                #if no_work_left() or True:
+                if False:
+                    return True
+
+                elif not work_request_sent:
+                    send_work_request()
+                    work_request_sent= True
+
+                else:
+                    check_for_work(work_request_sent,  work_available)
+
+
+                    if work_available:
+                        received_work(my_stack)
+                        return False
+
+
 
 
 if my_rank == 0:
